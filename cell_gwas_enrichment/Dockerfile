@@ -56,10 +56,28 @@ RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
     install.packages("Seurat", repos = "https://cloud.r-project.org")'
 RUN Rscript -e 'if (!requireNamespace("Seurat", quietly = TRUE)) stop("Failed to install: Seurat")'
 
-# Signac (depends on Seurat + the Bioconductor packages above).
-RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
-    install.packages("Signac", repos = "https://cloud.r-project.org")'
-RUN Rscript -e 'if (!requireNamespace("Signac", quietly = TRUE)) stop("Failed to install: Signac")'
+# Signac (depends on Seurat + the Bioconductor packages above). Install and
+# check are combined into a single RUN (rather than two separate layers) so
+# that editing the diagnostics below always forces Docker to actually
+# re-attempt the install instead of silently replaying an old cached layer
+# from a previous failed build -- which is what happened last time: the
+# install step was byte-identical to a prior run, so Docker reused its
+# (wrongly "successful", exit-0) cached result instead of retrying it.
+# options(warn = 1) prints warnings immediately/inline instead of queuing
+# them, so the real underlying reason shows up in the build log here rather
+# than being swallowed.
+RUN Rscript -e ' \
+    options(warn = 1, Ncpus = parallel::detectCores()); \
+    install.packages("Signac", repos = "https://cloud.r-project.org", dependencies = TRUE); \
+    if (!requireNamespace("Signac", quietly = TRUE)) { \
+        cat("---- Signac install diagnostic ----\n"); \
+        cat("R version: ", R.version.string, "\n"); \
+        pkg_info <- tryCatch( \
+            available.packages(repos = "https://cloud.r-project.org")["Signac", ], \
+            error = function(e) paste("available.packages() lookup failed:", conditionMessage(e))); \
+        print(pkg_info); \
+        stop("Failed to install: Signac") \
+    }'
 
 WORKDIR /pipeline
 COPY R/ ./R/
