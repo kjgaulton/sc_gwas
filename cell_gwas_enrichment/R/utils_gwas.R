@@ -118,3 +118,50 @@ load_gwas_sumstats <- function(sumstats_path,
   message(sprintf("load_gwas_sumstats: %d variants loaded (build %s)", length(gr), genome_build))
   gr
 }
+
+#' Harmonize chromosome-naming style between two GRanges
+#'
+#' load_gwas_sumstats() always coerces chromosomes to UCSC "chr"-prefixed
+#' style (e.g. "1" -> "chr1"), but ATAC peaks/fragments can just as easily
+#' use plain Ensembl/NCBI-style names ("1", "2", ...) depending on the
+#' reference used to build the object -- a very common source of "0 GWAS
+#' variants overlap the universe" errors that has nothing to do with the
+#' actual genome build (hg38 vs hg19), just the naming convention. This
+#' renames \code{gr}'s seqlevels to match \code{reference}'s convention
+#' (adding/stripping a leading "chr") if, and only if, the two currently
+#' share zero seqnames -- i.e. it's a no-op whenever they're already
+#' compatible, and it never touches \code{reference}.
+#'
+#' @param gr GRanges to (possibly) rename, e.g. the GWAS GRanges.
+#' @param reference GRanges whose naming convention gr should be matched to,
+#'   e.g. the peak universe.
+#' @param gr_label,reference_label Labels used only in the informational
+#'   message, for clearer logs.
+#' @return gr, with seqlevels renamed if needed.
+harmonize_seqnames <- function(gr, reference, gr_label = "GWAS variants", reference_label = "ATAC universe") {
+  gr_chrs  <- unique(as.character(seqnames(gr)))
+  ref_chrs <- unique(as.character(seqnames(reference)))
+
+  if (length(intersect(gr_chrs, ref_chrs)) > 0) return(gr)  # already compatible, nothing to do
+
+  ref_has_chr <- all(grepl("^chr", ref_chrs, ignore.case = TRUE))
+  gr_has_chr  <- all(grepl("^chr", gr_chrs, ignore.case = TRUE))
+
+  if (ref_has_chr && !gr_has_chr) {
+    new_levels <- paste0("chr", GenomeInfoDb::seqlevels(gr))
+  } else if (!ref_has_chr && gr_has_chr) {
+    new_levels <- sub("^chr", "", GenomeInfoDb::seqlevels(gr), ignore.case = TRUE)
+  } else {
+    warning(sprintf(
+      "%s and %s share no chromosome names, and it's not a simple 'chr' prefix difference -- ",
+      gr_label, reference_label),
+      "check that both use the same genome build/assembly (e.g. one might be hg19 and the other hg38).",
+      call. = FALSE)
+    return(gr)
+  }
+
+  message(sprintf("harmonize_seqnames: %s and %s used different chromosome-naming conventions (e.g. '%s' vs '%s'); renaming %s to match.",
+                   gr_label, reference_label, gr_chrs[1], ref_chrs[1], gr_label))
+  GenomeInfoDb::seqlevels(gr) <- new_levels
+  gr
+}

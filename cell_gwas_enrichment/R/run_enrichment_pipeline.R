@@ -139,6 +139,12 @@ RunCellGWASEnrichment <- function(object,
   if (verbose) message(sprintf("Universe: %d regions, %s bp total",
                                 length(universe), format(sum(as.numeric(width(universe))), big.mark = ",")))
 
+  ## 1b. Reconcile chromosome-naming style (e.g. "chr1" vs "1") between the
+  ## GWAS variants and the universe -- a very common mismatch that otherwise
+  ## silently zeroes out every overlap regardless of genome build. No-op if
+  ## they're already compatible.
+  gwas_gr <- harmonize_seqnames(gwas_gr, universe, gr_label = "GWAS variants", reference_label = "ATAC peak/genome universe")
+
   ## 2. Restrict GWAS variants to the universe ------------------------------
   ## `covariates`, if supplied, must be aligned 1:1 with the *original* gwas_gr
   ## passed in (e.g. as.data.frame(mcols(gwas))["maf"]) -- it is subset here
