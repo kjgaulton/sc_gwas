@@ -31,20 +31,68 @@ R/utils_permutation.R       build_universe_map(), permute_fragments_circular(), 
 R/enrichment_engine.R       fit_enrichment_regression() -- the core statistic
 R/run_enrichment_pipeline.R RunCellGWASEnrichment() -- main driver
 R/summarize_results.R       SummarizeCellGWASEnrichment(), PlotCellGWASEnrichment()
-example_run.R               End-to-end example
+example_run.R               End-to-end example, written as R code you edit directly
+run_pipeline_cli.R          Command-line wrapper around the same pipeline (see "Command-line usage")
 tests/validate_enrichment_stat.py   Statistical calibration/power checks (Python, no R needed)
 ```
 
 ## Requirements
 
-R packages: `Seurat`, `Signac`, `GenomicRanges`, `IRanges`, `S4Vectors`, `GenomeInfoDb`, `Rsamtools`, `data.table`, `ggplot2`. Optional: `regioneR` (only if using `perm_method = "regioneR"`), `parallel` (base R, for `n_cores > 1`).
+R packages: `Seurat`, `Signac`, `GenomicRanges`, `IRanges`, `S4Vectors`, `GenomeInfoDb`, `Rsamtools`, `data.table`, `ggplot2`. Optional: `regioneR` (only if using `perm_method = "regioneR"`), `parallel` (base R, for `n_cores > 1`), `optparse` (only needed for `run_pipeline_cli.R`).
 
 ```r
-install.packages(c("Seurat", "Signac", "data.table", "ggplot2"))
+install.packages(c("Seurat", "Signac", "data.table", "ggplot2", "optparse"))
 BiocManager::install(c("GenomicRanges", "IRanges", "S4Vectors", "GenomeInfoDb", "Rsamtools"))
 # optional:
 BiocManager::install("regioneR")
 ```
+
+## Command-line usage
+
+`run_pipeline_cli.R` wraps the same `RunCellGWASEnrichment()` call as `example_run.R`, but takes everything as command-line flags instead of requiring you to edit R code — useful for cron/scheduler jobs, running inside the Docker container, or sweeping parameters from a shell loop.
+
+```bash
+Rscript run_pipeline_cli.R --help
+```
+
+Typical per-cell, peak-restricted run:
+
+```bash
+Rscript run_pipeline_cli.R \
+  --atac-rds data/my_atac_object.rds \
+  --sumstats data/my_trait_sumstats.tsv.gz \
+  --chr-col CHR --pos-col POS --beta-col BETA --se-col SE \
+  --maf-col EAF --use-maf-covariate \
+  --genome-build hg38 \
+  --n-perm 200 --n-cores 4 \
+  --output results/per_cell_gwas_enrichment.tsv \
+  --plot-dir results/plots --plot-group-by cell_type
+```
+
+Whole-genome background with the peaks-confound covariate (see "Controlling for the generic 'peaks are GWAS-enriched' effect" below):
+
+```bash
+Rscript run_pipeline_cli.R \
+  --atac-rds data/my_atac_object.rds \
+  --sumstats data/my_trait_sumstats.tsv.gz \
+  --whole-genome --chrom-sizes data/hg38.chrom.sizes \
+  --consensus-peaks-bed data/consensus_peaks.bed \
+  --n-perm 1000 --n-cores 4 \
+  --output results/per_cell_gwas_enrichment_genomewide.tsv
+```
+
+Pseudobulk by cell type instead of per-cell (pools fragments within each group before testing):
+
+```bash
+Rscript run_pipeline_cli.R \
+  --atac-rds data/my_atac_object.rds \
+  --sumstats data/my_trait_sumstats.tsv.gz \
+  --group-by cell_type \
+  --n-perm 1000 \
+  --output results/pseudobulk_by_celltype.tsv
+```
+
+Peaks, blacklist, consensus-peaks, and variant-panel arguments all take plain BED files (chrom/start/end, no header); `--chrom-sizes` takes a two-column (chr, length) file like a standard UCSC `.chrom.sizes`. Run `--help` for the full flag list, which mirrors every argument documented on `RunCellGWASEnrichment()` in `R/run_enrichment_pipeline.R`.
 
 ## Running in Docker
 

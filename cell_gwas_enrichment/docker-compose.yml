@@ -6,6 +6,9 @@ services:
       - ./data:/pipeline/data
       - ./results:/pipeline/results
     working_dir: /pipeline
-    # Default: run the example script. Override at the CLI for interactive use, e.g.:
-    #   docker compose run --rm cell-gwas-enrichment R
-    command: ["Rscript", "example_run.R"]
+    # Default: show CLI help. Override at the CLI, e.g.:
+    #   docker compose run --rm cell-gwas-enrichment Rscript run_pipeline_cli.R \
+    #     --atac-rds data/my_atac_object.rds --sumstats data/my_trait_sumstats.tsv.gz \
+    #     --maf-col EAF --use-maf-covariate --n-cores 4 --output results/enrichment.tsv
+    #   docker compose run --rm cell-gwas-enrichment R   # interactive session
+    command: ["Rscript", "run_pipeline_cli.R", "--help"]

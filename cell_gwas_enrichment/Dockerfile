@@ -26,6 +26,7 @@ RUN Rscript -e 'BiocManager::install(c( \
 RUN Rscript -e 'install.packages(c( \
         "data.table", \
         "ggplot2", \
+        "optparse", \
         "Seurat", \
         "Signac" \
     ), repos = "https://cloud.r-project.org")'
@@ -35,15 +36,17 @@ RUN Rscript -e 'install.packages(c( \
 # at pipeline run time.
 RUN Rscript -e ' \
     required <- c("GenomicRanges","IRanges","S4Vectors","GenomeInfoDb","Rsamtools", \
-                  "regioneR","data.table","ggplot2","Seurat","Signac"); \
+                  "regioneR","data.table","ggplot2","optparse","Seurat","Signac"); \
     missing <- required[!sapply(required, requireNamespace, quietly = TRUE)]; \
     if (length(missing) > 0) stop("Failed to install: ", paste(missing, collapse = ", "))'
 
 WORKDIR /pipeline
 COPY R/ ./R/
 COPY example_run.R ./
+COPY run_pipeline_cli.R ./
 COPY tests/ ./tests/
 COPY README.md ./
+RUN chmod +x run_pipeline_cli.R
 
 # Mount points for user-supplied data (ATAC object, GWAS sumstats) and outputs.
 # These are meant to be overridden with -v bind mounts at `docker run` time;

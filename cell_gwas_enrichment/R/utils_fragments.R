@@ -16,6 +16,21 @@ suppressPackageStartupMessages({
   library(Rsamtools)
 })
 
+#' Read a BED file (chrom, start, end, ...; extra columns ignored) into a
+#' GRanges. Used by run_pipeline_cli.R to load peaks/blacklist/consensus-peak
+#' arguments from plain BED files without requiring rtracklayer.
+#'
+#' @param path Path to a (optionally gzipped) BED file, no header.
+#' @return GRanges, coordinates converted from BED's 0-based half-open to
+#'   GRanges' 1-based inclusive.
+read_bed_as_granges <- function(path) {
+  dt <- data.table::fread(path, header = FALSE)
+  GenomicRanges::GRanges(
+    seqnames = as.character(dt[[1]]),
+    ranges   = IRanges::IRanges(start = dt[[2]] + 1L, end = dt[[3]])
+  )
+}
+
 #' Get the peak universe (accessible-chromatin regions) from a Signac object
 #'
 #' @param object A Seurat object with a ChromatinAssay.
