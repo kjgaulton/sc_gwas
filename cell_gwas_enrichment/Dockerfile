@@ -10,6 +10,22 @@ FROM bioconductor/bioconductor_docker:latest
 
 LABEL description="Per-cell GWAS variant-effect-magnitude enrichment in ATAC-seq fragments (Signac/Seurat)"
 
+# System libraries needed by transitive dependencies of Seurat/Signac when
+# compiling from source (qlcMatrix needs GSL; igraph needs GLPK/GMP; hdf5r
+# needs libhdf5). Without these, install.packages() for the affected R
+# package can fail silently (it doesn't hard-stop the whole RUN command by
+# default) -- that's the most common cause of a "Failed to install: Signac"
+# error from the sanity-check steps below despite the install step itself
+# reporting success.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        libgsl-dev \
+        libglpk-dev \
+        libgmp-dev \
+        libhdf5-dev \
+        libxml2-dev \
+        cmake \
+    && rm -rf /var/lib/apt/lists/*
+
 # Bioconductor packages (installed first since they're the slower/trickier part)
 RUN Rscript -e 'BiocManager::install(c( \
         "GenomicRanges", \
@@ -19,26 +35,31 @@ RUN Rscript -e 'BiocManager::install(c( \
         "Rsamtools", \
         "regioneR" \
     ), update = FALSE, ask = FALSE)'
-
-# CRAN packages, including Seurat + Signac. These pull in a large number of
-# transitive dependencies (Matrix, RcppArmadillo, irlba, uwot, cowplot, ...)
-# and will take a while to build from source on first image build.
-RUN Rscript -e 'install.packages(c( \
-        "data.table", \
-        "ggplot2", \
-        "optparse", \
-        "Seurat", \
-        "Signac" \
-    ), repos = "https://cloud.r-project.org")'
-
-# Sanity check: fail the build early (with a clear error) if any package
-# didn't actually install, rather than surfacing a confusing error later
-# at pipeline run time.
 RUN Rscript -e ' \
-    required <- c("GenomicRanges","IRanges","S4Vectors","GenomeInfoDb","Rsamtools", \
-                  "regioneR","data.table","ggplot2","optparse","Seurat","Signac"); \
+    required <- c("GenomicRanges","IRanges","S4Vectors","GenomeInfoDb","Rsamtools","regioneR"); \
     missing <- required[!sapply(required, requireNamespace, quietly = TRUE)]; \
     if (length(missing) > 0) stop("Failed to install: ", paste(missing, collapse = ", "))'
+
+# CRAN packages, split into their own layers so a failure in one doesn't
+# force recompiling the others on a rebuild, and so we know exactly which
+# package failed instead of finding out only after everything finishes.
+RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
+    install.packages(c("data.table", "ggplot2", "optparse"), repos = "https://cloud.r-project.org")'
+RUN Rscript -e ' \
+    required <- c("data.table","ggplot2","optparse"); \
+    missing <- required[!sapply(required, requireNamespace, quietly = TRUE)]; \
+    if (length(missing) > 0) stop("Failed to install: ", paste(missing, collapse = ", "))'
+
+# Seurat: this is the slow step (large compiled dependency tree -- expect
+# 15-20+ minutes on first build).
+RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
+    install.packages("Seurat", repos = "https://cloud.r-project.org")'
+RUN Rscript -e 'if (!requireNamespace("Seurat", quietly = TRUE)) stop("Failed to install: Seurat")'
+
+# Signac (depends on Seurat + the Bioconductor packages above).
+RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
+    install.packages("Signac", repos = "https://cloud.r-project.org")'
+RUN Rscript -e 'if (!requireNamespace("Signac", quietly = TRUE)) stop("Failed to install: Signac")'
 
 WORKDIR /pipeline
 COPY R/ ./R/

@@ -96,9 +96,18 @@ Peaks, blacklist, consensus-peaks, and variant-panel arguments all take plain BE
 
 ## Running in Docker
 
-A `Dockerfile` is included, built on `bioconductor/bioconductor_docker`, which comes with R + BiocManager preconfigured so the Bioconductor packages (GenomicRanges, Rsamtools, etc.) install cleanly. It also installs Seurat/Signac and their dependencies, which is by far the slowest part of the build (expect it to take a while the first time — Seurat alone pulls in a large compiled dependency tree).
+A `Dockerfile` is included, built on `bioconductor/bioconductor_docker`, which comes with R + BiocManager preconfigured so the Bioconductor packages (GenomicRanges, Rsamtools, etc.) install cleanly. It also installs the system libraries (`libgsl-dev`, `libglpk-dev`, `libgmp-dev`, `libhdf5-dev`, `libxml2-dev`, `cmake`) that Seurat/Signac's compiled dependencies (`qlcMatrix`, `igraph`, `hdf5r`, ...) need to build from source, then Seurat and Signac themselves, each in its own layer with an immediate sanity check. Seurat is by far the slowest step — expect 15-20+ minutes on first build.
 
-**Note:** this container was authored and reviewed for correctness, but not build-tested — the sandbox this was written in had no Docker daemon and no network access to CRAN/Bioconductor/Docker Hub. Build it once on your own machine and let me know if anything in the package list needs adjusting.
+**Note:** this container was authored and reviewed for correctness, but not build-tested — the sandbox this was written in had no Docker daemon and no network access to CRAN/Bioconductor/Docker Hub. It has since been revised based on a real build failure (Signac failing to compile due to missing system libraries); if you hit another package install failure, the per-package sanity checks will tell you exactly which one, and you can debug it directly without waiting through a full rebuild:
+
+```bash
+# Comment out the failing package's later RUN steps in the Dockerfile so the
+# build stops right after the layer that's failing, then:
+docker build -t cell-gwas-debug .
+docker run --rm -it cell-gwas-debug R -e 'install.packages("<package>", repos = "https://cloud.r-project.org")'
+```
+
+Earlier layers are cached, so this re-runs almost instantly up to the failing step and shows the real compiler/linker error instead of just "failed to install."
 
 Build the image:
 
