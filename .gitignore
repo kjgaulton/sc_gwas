@@ -1,0 +1,11 @@
+# data/results are user-supplied and run outputs; don't commit them
+cell_gwas_enrichment/data/
+cell_gwas_enrichment/results/
+
+# R
+.Rhistory
+.RData
+.Rproj.user/
+
+# macOS
+.DS_Store

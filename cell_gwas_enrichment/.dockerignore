@@ -1,0 +1,10 @@
+.git
+.gitignore
+data/
+results/
+*.rds
+*.tsv
+*.tsv.gz
+*.csv
+*.pdf
+*.png

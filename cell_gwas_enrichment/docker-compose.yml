@@ -1,0 +1,11 @@
+services:
+  cell-gwas-enrichment:
+    build: .
+    image: cell-gwas-enrichment:latest
+    volumes:
+      - ./data:/pipeline/data
+      - ./results:/pipeline/results
+    working_dir: /pipeline
+    # Default: run the example script. Override at the CLI for interactive use, e.g.:
+    #   docker compose run --rm cell-gwas-enrichment R
+    command: ["Rscript", "example_run.R"]
