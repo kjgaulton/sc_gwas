@@ -56,6 +56,17 @@ RUN Rscript -e 'options(Ncpus = parallel::detectCores()); \
     install.packages("Seurat", repos = "https://cloud.r-project.org")'
 RUN Rscript -e 'if (!requireNamespace("Seurat", quietly = TRUE)) stop("Failed to install: Seurat")'
 
+# sparseMatrixStats is a Bioconductor-only package (not on CRAN) that is a
+# hard `Imports` dependency of Signac; install.packages() cannot resolve it
+# on its own the way it can for CRAN transitive dependencies, so it needs to
+# go through BiocManager first (this was the actual root cause of the
+# earlier "dependency 'sparseMatrixStats' is not available" build failure).
+# Kept as its own layer (rather than folded into the first BiocManager
+# install above) so this fix doesn't invalidate the cache for the ~15-20
+# minute Seurat layer above it.
+RUN Rscript -e 'BiocManager::install("sparseMatrixStats", update = FALSE, ask = FALSE)'
+RUN Rscript -e 'if (!requireNamespace("sparseMatrixStats", quietly = TRUE)) stop("Failed to install: sparseMatrixStats")'
+
 # Signac (depends on Seurat + the Bioconductor packages above). Install and
 # check are combined into a single RUN (rather than two separate layers) so
 # that editing the diagnostics below always forces Docker to actually
