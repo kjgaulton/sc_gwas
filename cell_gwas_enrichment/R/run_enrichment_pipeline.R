@@ -21,6 +21,16 @@ suppressPackageStartupMessages({
 #'
 #' @param object A Seurat object with a ChromatinAssay carrying attached
 #'   Fragment file(s) (Signac::Fragments(object[[assay]])).
+#' @param fragment_path Optional override for the fragment file path(s),
+#'   bypassing whatever path(s) are stored on the object's Fragment
+#'   object(s). Useful when the object was created on a different machine
+#'   (e.g. an HPC/NFS path baked in at Fragment-object creation time that no
+#'   longer resolves, such as inside a Docker container) -- point this at
+#'   wherever you've actually placed the matching fragments.tsv.gz (+ .tbi
+#'   index) instead of having to edit/resave the .rds. Accepts a single path
+#'   or a character vector if the assay has multiple Fragment objects (e.g.
+#'   one per sample). If NULL (default), paths are read from the object as
+#'   usual via Signac::Fragments().
 #' @param gwas_gr GRanges from load_gwas_sumstats(), with mcols$chi2 and
 #'   optionally mcols$maf etc.
 #' @param assay Assay name (default DefaultAssay(object)).
@@ -104,6 +114,7 @@ suppressPackageStartupMessages({
 #'   \item{params}{list of parameters used, for provenance/reproducibility.}
 RunCellGWASEnrichment <- function(object,
                                    gwas_gr,
+                                   fragment_path = NULL,
                                    assay = Seurat::DefaultAssay(object),
                                    restrict_to_peaks = TRUE,
                                    peaks = NULL,
@@ -207,7 +218,8 @@ RunCellGWASEnrichment <- function(object,
 
   ## 4. Load + universe-clip fragments for all needed cells at once ---------
   if (verbose) message("Reading fragments...")
-  frags_by_cell <- load_cell_fragments(object, universe, assay = assay, cells = all_barcodes)
+  frags_by_cell <- load_cell_fragments(object, universe, assay = assay, cells = all_barcodes,
+                                        fragment_path = fragment_path)
 
   ## 5. Build the permutation universe map once, reused for every cell -----
   umap <- if (perm_method == "circular") build_universe_map(universe) else NULL

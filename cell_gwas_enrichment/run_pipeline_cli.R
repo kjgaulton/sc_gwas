@@ -43,6 +43,11 @@ option_list <- list(
               help = "Path to GWAS summary statistics (tab-delimited, optionally gzipped) [required]"),
   make_option("--assay", type = "character", default = NULL,
               help = "Assay name in the Seurat object [default: DefaultAssay(object)]"),
+  make_option("--fragment-path", type = "character", default = NULL,
+              help = paste("Optional override for the fragment file path(s), comma-separated if",
+                            "multiple. Use this if the object's stored Fragment path (e.g. an HPC/NFS",
+                            "path from wherever it was created) doesn't resolve inside the container",
+                            "-- point it at your local fragments.tsv.gz (+ .tbi) instead.")),
 
   # GWAS sumstats column mapping
   make_option("--chr-col", type = "character", default = "CHR", help = "[default %default]"),
@@ -167,10 +172,17 @@ if (!is.null(opt[["group-by"]])) {
   if (verbose) message(sprintf("Testing %d cells from --cells-file", length(cells)))
 }
 
+fragment_path <- NULL
+if (!is.null(opt[["fragment-path"]])) {
+  fragment_path <- trimws(strsplit(opt[["fragment-path"]], ",")[[1]])
+  if (verbose) message("Overriding fragment path(s): ", paste(fragment_path, collapse = ", "))
+}
+
 ## ---- Run the pipeline --------------------------------------------------------
 res <- RunCellGWASEnrichment(
   object = atac,
   gwas_gr = gwas,
+  fragment_path = fragment_path,
   assay = assay,
   restrict_to_peaks = !opt[["whole-genome"]],
   peaks = peaks,
